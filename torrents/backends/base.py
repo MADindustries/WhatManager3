@@ -1,5 +1,9 @@
+from WhatManager3.settings import DEBUG
+
+
 class Torrent(object):
-    def __init__(self, info_hash, path, name, size_bytes, uploaded_bytes, done, date_added, error):
+    def __init__(self, info_hash, path, name, size_bytes, uploaded_bytes, done, date_added, error,
+                 announces):
         """
         Creates a new Torrent instance
         :param info_hash:  SHA1 hash, upper case
@@ -9,6 +13,7 @@ class Torrent(object):
         :param done: Float between 0 and 1 - how much has been downloaded
         :param date_added: a datetime object representing when the torrent was added
         :param error: None if there is no error, a string describing it if there is
+        :param announces: a list of lists of strings - the announce urls for the trackers (tiered)
         :return: a new Torrent instance
         """
         self.info_hash = info_hash
@@ -19,11 +24,13 @@ class Torrent(object):
         self.done = done
         self.date_added = date_added
         self.error = error
-
-
-class BaseBackend(object):
-    def get_torrents(self):
-        assert False
+        self.announces = announces
+        if DEBUG:
+            assert type(announces) is list
+            if len(announces):
+                assert type(announces[0]) is list
+                assert len(announces[0])
+                assert len(announces[0][0])
 
 
 class TorrentClientException(Exception):
