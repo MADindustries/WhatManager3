@@ -1,9 +1,12 @@
 import asyncio
+import time
 
 from tornado.platform.asyncio import AsyncIOMainLoop
+
 from tornado.web import Application, url
 
 from WhatManager3.asyncio_helper import JsonWhatManagerRequestHandler
+
 from WhatManager3.settings import TRACKER_MANAGER_PORT
 from WhatManager3.utils import db_func
 from trackers.loader import get_clients
@@ -11,11 +14,24 @@ from trackers.loader import get_clients
 
 class TrackerUpdater(object):
     @db_func
-    def __init__(self):
+    def __init__(self, loop):
+        self.loop = loop
         self.clients = get_clients()
 
     def start(self):
-        pass
+        asyncio.async(self.freeleech_update_loop(), loop=self.loop)
+
+    @asyncio.coroutine
+    def freeleech_update_loop(self):
+        current_time = time.time()
+        delay = 1800 - current_time % 1800
+        print('Hourly update in ', delay, 's')
+        yield from asyncio.sleep(delay)
+        for client in self.clients.values():
+            update_freeleech = getattr(client, 'update_freeleech', None)
+            if update_freeleech is not None:
+                yield from update_freeleech()
+        asyncio.async(self.freeleech_update_loop(), loop=self.loop)
 
 
 class AddTorrentHandler(JsonWhatManagerRequestHandler):
@@ -47,7 +63,7 @@ class AddTorrentHandler(JsonWhatManagerRequestHandler):
 def run():
     AsyncIOMainLoop().install()
     loop = asyncio.get_event_loop()
-    updater = TrackerUpdater()
+    updater = TrackerUpdater(loop)
     app = Application([
         url('/torrents/add', AddTorrentHandler, kwargs={'updater': updater}),
     ])

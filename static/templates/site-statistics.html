@@ -1,0 +1,57 @@
+<div ng-controller="SiteStatisticsController">
+    <div class="row row-flex" ng-controller="SiteStatisticsController">
+        <div class="col-md-3">
+            <div class="widget-box">
+                <div class="widget-title">
+                    <span class="icon"><i class="fa fa-info-circle"></i></span><h5>Site
+                    Statistics</h5>
+                </div>
+                <div class="widget-content">
+                    {{ name }}
+                    <ul class="site-stats">
+                        <li><i class="fa fa-arrow-right"></i>
+                            <strong>{{ stats.torrents }}</strong>
+                            <small>Total torrents</small>
+                        </li>
+                        <li><i class="fa fa-arrow-right"></i>
+                            <strong>{{ stats.torrentsSize | fileSizeFormat }}</strong>
+                            <small>Total size</small>
+                        </li>
+                        <li><i class="fa fa-arrow-right"></i>
+                            <strong>{{ stats.buffer | fileSizeFormat }}</strong>
+                            <small>Buffer</small>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3" ng-repeat="location in stats.downloadLocations | slice:0:3">
+            <div class="widget-box">
+                <div class="widget-title">
+                    <span class="icon"><i class="fa fa-hdd-o"></i></span>
+                    <h5>{{ location.path }} ({{ location.torrents }})</h5>
+                </div>
+                <div class="widget-content">
+                    <div disk-space-chart ng-model="location" style="height: 200px;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row row-flex" ng-if="stats.downloadLocations.length > 3">
+        <div class="col-md-3" ng-repeat="location in stats.downloadLocations | slice:3">
+            <div class="widget-box">
+                <div class="widget-title">
+                    <span class="icon"><i class="fa fa-hdd-o"></i></span>
+                    <h5>{{ location.path }} ({{ location.torrents }})</h5>
+                </div>
+                <div class="widget-content">
+                    <div disk-space-chart ng-model="location" style="height: 200px;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

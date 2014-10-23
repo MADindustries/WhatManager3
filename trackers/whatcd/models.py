@@ -217,6 +217,7 @@ class Settings(models.Model):
     user_id = models.IntegerField()
     username = models.CharField(max_length=128)
     password = models.CharField(max_length=128)
+    monitor_freeleech = models.BooleanField(default=False)
 
     @classmethod
     def get(cls):
@@ -229,3 +230,18 @@ class Settings(models.Model):
     def set(cls, settings):
         settings.id = 1
         settings.save()
+
+
+class FreeleechTorrent(models.Model):
+    group_id = models.IntegerField()
+    torrent_id = models.IntegerField()
+    group_json = models.TextField()
+    torrent_json = models.TextField()
+
+    @cached_property
+    def group(self):
+        return json_loads(self.group_json)
+
+    @cached_property
+    def torrent(self):
+        return json_dumps(self.torrent_json)

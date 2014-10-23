@@ -11,10 +11,11 @@ from WhatManager3.asyncio_helper import JsonWhatManagerRequestHandler
 from WhatManager3.utils import db_func, prune_connections
 from torrents.manager.sync import compute_sync
 from torrents.manager.utils import Timer
-from torrents.models import ClientInstance, ClientTorrent, DownloadLocation, TorrentManager
+from torrents.models import ClientInstance, ClientTorrent, DownloadLocation, TorrentManager, \
+    QueuedTorrent
 from torrents.manager.sharding import choose_shard, TorrentAlreadyAddedException
 from torrents.utils import TorrentInfo
-from trackers.loader import get_tracker_torrent_model
+from trackers.store import TorrentStore
 
 
 logging.basicConfig(level=logging.INFO)
@@ -24,6 +25,7 @@ class ClientManager(object):
     UPDATE_INTERVAL = 3
     FULL_UPDATE_INTERVAL = 30
     SIMULTANEOUS_ADDS = 2
+    QUEUE_POP_INTERVAL = 5
 
     @db_func
     def __init__(self, event_loop=None):
@@ -38,11 +40,32 @@ class ClientManager(object):
         self.pool = ThreadPoolExecutor(2)
         self.update_index = 0
         self.info_hashes = set()
+        self.torrent_store = TorrentStore.create()
 
     def start(self):
         asyncio.async(self.full_update_loop(), loop=self.loop)
         for instance in self.instances.values():
             asyncio.async(self.update_loop(instance), loop=self.loop)
+        asyncio.async(self.queue_loop(), loop=self.loop)
+
+    @asyncio.coroutine
+    @db_func
+    def queue_pop(self):
+        try:
+            top = QueuedTorrent.top()
+        except QueuedTorrent.DoesNotExist:
+            return
+        torrent_data = self.torrent_store.get(top.announces_hash, top.info_hash)
+        yield from self.add_torrent(torrent_data, DownloadLocation.objects.get().path)
+        prune_connections()
+        top.delete()
+
+    @asyncio.coroutine
+    def queue_loop(self):
+        try:
+            yield from self.queue_pop()
+        finally:
+            self.loop.call_later(self.QUEUE_POP_INTERVAL, asyncio.async, self.queue_loop())
 
     @db_func
     def get_torrents(self, query):
@@ -151,14 +174,9 @@ class ClientManager(object):
     @asyncio.coroutine
     def add_torrent(self, torrent_data, add_path):
         info = TorrentInfo.from_binary(torrent_data)
-        exists_result = {
-            'success': False,
-            'error_code': 'torrent_already_added',
-            'error': 'Torrent has already been added.',
-        }
         hashes_key = (info.announces_hash, info.info_hash)
         if hashes_key in self.info_hashes:
-            return exists_result
+            raise TorrentAlreadyAddedException()
         self.info_hashes.add(hashes_key)
         try:
             locked_instances = [i for i in self.instances if not i.lock.locked()]
@@ -168,52 +186,33 @@ class ClientManager(object):
             with (yield from instance.lock):
                 yield from instance.client.add_torrent(torrent_data, add_path)
                 yield from self.update_added_torrent(instance, info.info_hash)
-            return {
-                'success': True
-            }
-        except TorrentAlreadyAddedException:
-            return exists_result
         finally:
             self.info_hashes.remove(hashes_key)
 
     @asyncio.coroutine
     @db_func
-    def delete_torrent(self, info_hash):
+    def delete_torrent(self, torrent_id):
         not_found_resp = {
             'success': False,
             'error_code': 'torrent_not_found',
             'error': 'Torrent was not found',
         }
         try:
-            torrent = ClientTorrent.objects.get(info_hash=info_hash)
+            torrent = ClientTorrent.objects.get(id=torrent_id)
         except ClientTorrent.DoesNotExist:
             return not_found_resp
         instance = self.instances[torrent.instance_id]
         with (yield from instance.lock):
             try:
-                ClientTorrent.objects.get(info_hash=info_hash)
+                ClientTorrent.objects.get(id=torrent_id)
             except ClientTorrent.DoesNotExist:
                 return not_found_resp
-            yield from instance.client.delete_torrent(info_hash)
+            yield from instance.client.delete_torrent(torrent.info_hash)
             prune_connections()
             torrent.delete()
             return {
                 'success': True
             }
-
-    @asyncio.coroutine
-    @db_func
-    def delete_torrent_torrent_id(self, tracker, torrent_id):
-        model = get_tracker_torrent_model(tracker)
-        try:
-            tracker_torrent = model.objects.get(id=torrent_id)
-        except model.DoesNotExist:
-            return {
-                'success': False,
-                'error_code': 'torrent_not_found',
-                'error': 'Torrent was not found',
-            }
-        return (yield from self.delete_torrent(tracker_torrent.info_hash))
 
 
 class AddTorrentHandler(JsonWhatManagerRequestHandler):
@@ -237,7 +236,17 @@ class AddTorrentHandler(JsonWhatManagerRequestHandler):
                 'error': 'Please supply a path parameter',
             }
         torrent_data = self.request.files['torrent'][0].body
-        return (yield from self.updater.add_torrent(torrent_data, add_path))
+        try:
+            yield from self.updater.add_torrent(torrent_data, add_path)
+            return {
+                'success': True
+            }
+        except TorrentAlreadyAddedException:
+            return {
+                'success': False,
+                'error_code': 'torrent_already_added',
+                'error': 'Torrent has already been added.',
+            }
 
 
 class DeleteTorrentHandler(JsonWhatManagerRequestHandler):
@@ -247,21 +256,15 @@ class DeleteTorrentHandler(JsonWhatManagerRequestHandler):
 
     @asyncio.coroutine
     def post_json(self):
-        pass
-        # announces_hash = self.get_body_argument('announces_hash', None)
-        # info_hash = self.get_body_argument('info_hash', None)
-        # tracker = self.get_body_argument('tracker', None)
-        # torrent_id = self.get_body_argument('torrent_id', None)
-        # if info_hash:
-        # return (yield from self.updater.delete_torrent(info_hash))
-        # elif tracker and torrent_id:
-        # return (yield from self.updater.delete_torrent_torrent_id(tracker, torrent_id))
-        # elif self.get_body_argument('path', None) is None:
-        # return {
-        # 'success': False,
-        # 'error_code': 'missing_parameter',
-        # 'error': 'Please either info_hash or tracker and torrent_id',
-        # }
+        torrent_id = self.get_body_argument('torrent_id', None)
+        if torrent_id:
+            return (yield from self.updater.delete_torrent(torrent_id))
+        else:
+            return {
+                'success': False,
+                'error_code': 'missing_parameter',
+                'error': 'Please either info_hash or tracker and torrent_id',
+            }
 
 
 class PingHandler(RequestHandler):

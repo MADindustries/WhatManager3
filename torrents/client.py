@@ -61,20 +61,13 @@ class TorrentManagerClient(object):
         return requests.post(url, data=data, files=files)
 
     @handle_errors
-    def delete_torrent(self, info_hash=None, tracker=None, torrent_id=None):
+    def delete_torrent(self, torrent_id):
         """
         Deletes a torrent. Pass either info_hash or tracker and torrent_id
         """
         url = 'http://{0}:{1}/torrents/delete'.format(self.torrent_manager.host,
                                                       self.torrent_manager.port)
-        assert info_hash or (tracker and torrent_id)
-        if info_hash:
-            data = {
-                'info_hash': info_hash
-            }
-        else:
-            data = {
-                'tracker': tracker,
-                'torrent_id': torrent_id
-            }
+        data = {
+            'torrent_id': torrent_id
+        }
         return requests.post(url, data=data)

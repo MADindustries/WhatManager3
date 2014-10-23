@@ -1,0 +1,20 @@
+{% extends 'dashboard_base.html' %}
+
+{% load staticfiles %}
+
+{% block content %}
+<div id="content-header">
+    <h1>Dashboard</h1>
+</div>
+<div id="breadcrumb">
+    <a href="#" title="Go to Home" class="tip-bottom"><i class="fa fa-home"></i> Home</a>
+    <a href="#" class="current">Dashboard</a>
+</div>
+<div ng-include="'{% static 'templates/site-statistics.html' %}'">
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+{{ block.super }}
+
+{% endblock %}

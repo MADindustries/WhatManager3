@@ -1,0 +1,16 @@
+.row.row-flex {
+  display: flex;
+}
+.row.row-flex.wrap {
+  flex-wrap: wrap;
+}
+.row.row-flex > div {
+  display: flex;
+  flex-direction: column;
+}
+.row.row-flex > div:first-of-type {
+  margin-right: -1px;
+}
+.row.row-flex > div .widget-box {
+  flex: 1;
+}

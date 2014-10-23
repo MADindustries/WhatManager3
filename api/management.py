@@ -20,5 +20,5 @@ class ApiManager(object):
         destination = os.path.join(dl.path, str(tracker_torrent.id))
         self.torrent_manager.add_torrent(torrent_data, destination)
 
-    def delete_torrent(self, info_hash=None, tracker=None, torrent_id=None):
-        self.torrent_manager.delete_torrent(info_hash, tracker, torrent_id)
+    def delete_torrent(self, torrent_id=None):
+        self.torrent_manager.delete_torrent(torrent_id)

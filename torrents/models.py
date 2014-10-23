@@ -1,4 +1,5 @@
 from importlib import import_module
+import os
 
 from django.db import models
 from django.utils.functional import cached_property
@@ -42,6 +43,15 @@ class DownloadLocation(models.Model):
     manager = models.ForeignKey(TorrentManager)
     path = models.CharField(max_length=512)
 
+    def get_disk_space(self):
+        # TODO: we shouldn't be asking the FS, but the torrent manager for this
+        stat = os.statvfs(self.path)
+        return {
+            'free': stat.f_bfree * stat.f_frsize,
+            'used': (stat.f_blocks - stat.f_bfree) * stat.f_frsize,
+            'total': stat.f_blocks * stat.f_frsize
+        }
+
 
 class ClientTorrent(models.Model):
     class Meta:
@@ -77,3 +87,24 @@ class ClientTorrent(models.Model):
     def announces(self, value):
         self.announces_enc = encode_announces(value)
         self.announces_hash = hash_announces(value)
+
+
+class QueuedTorrent(models.Model):
+    class Meta:
+        unique_together = (
+            ('announces_hash', 'info_hash'),
+            ('instance', 'info_hash'),
+        )
+
+    announces_hash = models.CharField(max_length=40, db_index=True)
+    info_hash = models.CharField(max_length=40, db_index=True)
+    added = models.DateTimeField(auto_now_add=True)
+    delay = models.FloatField(db_index=True)
+
+    @classmethod
+    def top(cls):
+        head = list(QueuedTorrent.objects.all().order_by('delay', '-added')[:1])
+        if len(head):
+            return head[0]
+        else:
+            raise QueuedTorrent.DoesNotExist()

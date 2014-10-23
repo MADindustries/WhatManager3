@@ -1,6 +1,8 @@
 import asyncio
 import base64
 from http.cookies import SimpleCookie
+from itertools import count
+import logging
 import pickle
 import re
 
@@ -8,9 +10,11 @@ import aiohttp
 
 from WhatManager3.utils import json_loads
 from trackers.rate_limiter import RateLimiter
-from trackers.whatcd.models import LoginCache, Settings
+from trackers.whatcd.models import LoginCache
 from trackers.whatcd.settings import WHAT_CD_ROOT
 
+
+logger = logging.Logger(__name__)
 
 HEADERS = {
     'Accept-Charset': 'utf-8',
@@ -55,11 +59,6 @@ class WhatAPI:
         except LoginCache.DoesNotExist:
             pass
 
-    @classmethod
-    def create(cls):
-        settings = Settings.get()
-        return WhatAPI(settings.username, settings.password)
-
     @asyncio.coroutine
     def _login(self):
         """
@@ -77,11 +76,13 @@ class WhatAPI:
         yield from r.text()
         r = yield from aiohttp.request('post', login_page, data=data, headers=HEADERS,
                                        allow_redirects=False, connector=self.connector)
-        if r.status != 302:
+        if r.status == 200:
             raise LoginException(r)
+        if r.status != 302:
+            raise RequestException('Request exception encountered while trying to log in', r)
         account_info = yield from self.request("index", try_login=False)
-        self.authkey = account_info["response"]["authkey"]
-        self.passkey = account_info["response"]["passkey"]
+        self.authkey = account_info["authkey"]
+        self.passkey = account_info["passkey"]
         login_cache = LoginCache(
             cookies=base64.b64encode(pickle.dumps(list(self.connector.cookies.items()))),
             authkey=self.authkey,
@@ -113,6 +114,23 @@ class WhatAPI:
         if r.status != 200:
             raise RequestException(response=r)
         return self.parse_response(json_loads(response_text))
+
+    @asyncio.coroutine
+    def request_retry(self, action, retry_limit=5, **kwargs):
+        n_retry = 1
+        while True:
+            try:
+                return (yield from self.request(action, **kwargs))
+            except LoginException:
+                raise
+            except RequestException:
+                if n_retry <= retry_limit:
+                    logger.info('Request failed, retrying in', 2 ** n_retry)
+                    yield from asyncio.sleep(2 ** n_retry)
+                    n_retry += 1
+                else:
+                    raise
+
 
     def parse_response(self, json_response):
         try:
@@ -147,27 +165,14 @@ class WhatAPI:
             return filename, (yield from r.read())
         raise RequestException('Unable to download torrent', response=r)
 
-        # @asyncio.coroutine
-        # def get_free_torrents(self):
-        # # Start form 1 up
-        # for page in count(1):
-        # response = self.request('browse', freetorrent=1, page=page)['response']
-        # if response['pages'] > 20 and socket.gethostname() == FREELEECH_HOSTNAME:
-        #             # send_freeleech_email('Site-wide freeleech.')
-        #             raise Exception('More than 20 pages of free torrents. Site-wide freeleech?')
-        #         for result in response['results']:
-        #             yield result
-        #         if response['currentPage'] == response['pages']:
-        #             break
-        #         sleep(2)
-        #
-        # @asyncio.coroutine
-        # def get_free_torrent_ids(self):
-        #     for free_group in self.get_free_torrents():
-        #         if 'torrents' in free_group:
-        #             for torrent in free_group['torrents']:
-        #                 if torrent['isFreeleech']:
-        #                     yield int(torrent['torrentId']), free_group, torrent
-        #         else:
-        #             if free_group['isFreeleech']:
-        #                 yield int(free_group['torrentId']), free_group, free_group
+    @asyncio.coroutine
+    def get_browse_results(self, **kwargs):
+        results = []
+        for page in count(1):
+            response = yield from self.request_retry('browse', page=page, **kwargs)
+            if response['pages'] > 40:
+                raise Exception('More than 20 pages of free torrents. Site-wide freeleech?')
+            results.extend(response['results'])
+            if response['currentPage'] == response['pages']:
+                break
+        return results
