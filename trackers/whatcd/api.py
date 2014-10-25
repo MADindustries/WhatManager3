@@ -131,7 +131,6 @@ class WhatAPI:
                 else:
                     raise
 
-
     def parse_response(self, json_response):
         try:
             if json_response["status"] != "success":

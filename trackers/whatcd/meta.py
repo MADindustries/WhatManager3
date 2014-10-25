@@ -147,4 +147,3 @@ def get_artists(music_info):
         result.append(a['name'])
         result.append(a['join'])
     return u''.join(result)
-

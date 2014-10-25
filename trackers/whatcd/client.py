@@ -1,5 +1,4 @@
 import asyncio
-import time
 
 from django.db import transaction
 
@@ -61,7 +60,6 @@ class TrackerClient(object):
             prune_connections()
             try:
                 print('Checking', torrent.torrent_id)
-                s = time.time()
                 TrackerTorrent.objects.get(id=torrent.torrent_id)
             except TrackerTorrent.DoesNotExist:
                 yield from self.fetch_metadata(torrent.torrent_id)

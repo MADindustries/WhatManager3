@@ -52,6 +52,6 @@ def compute_sync(instance, download_locations, m_torrents, t_torrents):
             if client_torrent is not None:
                 changed_torrents.append(client_torrent)
     for info_hash in m_torrents:
-        if not info_hash in t_torrents:
+        if info_hash not in t_torrents:
             deleted_hashes.append(info_hash)
     return new_torrents, changed_torrents, deleted_hashes
