@@ -8,7 +8,7 @@ client_types = {
 
 def get_clients():
     return {
-        k: v() for k, v in client_types.items()
+        k: v.create() for k, v in client_types.items()
     }
 
 

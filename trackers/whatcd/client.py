@@ -15,8 +15,8 @@ class TrackerClient(object):
     tracker_domain = 'tracker.what.cd:34000'
     tracker_torrent_model = TrackerTorrent
 
-    def __init__(self):
-        self.settings = Settings.get()
+    def __init__(self, settings):
+        self.settings = settings
         self.client = WhatAPI(self.settings.username, self.settings.password)
 
     @asyncio.coroutine
@@ -68,3 +68,7 @@ class TrackerClient(object):
             else:
                 yield from asyncio.sleep(0.05)
         print('freeleech metadata complete')
+
+    @classmethod
+    def create(cls):
+        return TrackerClient(Settings.get())

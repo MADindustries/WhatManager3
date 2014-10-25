@@ -7,10 +7,10 @@ from unittest import mock
 from django.test.testcases import TestCase
 
 from WhatManager3.utils import json_loads
-
 from trackers.store import TorrentStore
 from trackers.whatcd.client import TrackerClient
-from trackers.whatcd.models import TrackerTorrent, TorrentGroup, Artist, ArtistAlias, TorrentArtist
+from trackers.whatcd.models import TrackerTorrent, TorrentGroup, Artist, ArtistAlias, TorrentArtist, \
+    Settings
 
 
 music_json = r'{"status":"success","response":{"group":{"wikiBody":"The fourth album by the English rock band Led Zeppelin was released on 8 November 1971. Upon its release, Led Zeppelin IV was a commercial and critical success. In 2003, the album was ranked 66th on Rolling Stone magazine&#39;s list of &quot;The 500 Greatest Albums of All Time&quot;.<br \/>\r\n<br \/>\r\n<ol class=\"postlist\"><li>Black Dog (4:35)<\/li><li>Rock And Roll (3:39)<\/li><li>The Battle Of Evermore (5:51)<\/li><li>Stairway To Heaven (7:58)<\/li><li>Misty Mountain Hop (4:38)<\/li><li>Four Sticks (4:44)<\/li><li>Going To California (3:31)<\/li><li>When The Levee Breaks (7:07)<\/li><\/ol><br \/>\n\r<br \/>\n<span style=\"color: red;\"><span style=\"font-weight: bold;\">Staff edit:<\/span> Cassette Approval:  The reel-to-reel version has been specifically approved as a high quality analogue source.  irredentia<\/span>","wikiImage":"http:\/\/i.imgur.com\/Xf9D954.jpg","id":11153,"name":"Led Zeppelin IV","year":1971,"recordLabel":"","catalogueNumber":"","releaseType":1,"categoryId":1,"categoryName":"Music","time":"2014-10-16 21:44:38","vanityHouse":false,"isBookmarked":false,"musicInfo":{"composers":[],"dj":[],"artists":[{"id":1774,"name":"Led Zeppelin"}],"with":[{"id":478013,"name":"Ian Stewart"},{"id":12658,"name":"Sandy Denny"}],"conductor":[],"remixedBy":[],"producer":[{"id":31920,"name":"Jimmy Page"}]},"tags":["1970s","folk","progressive.rock","psychedelic","rock","hard.rock","classic.rock","blues.rock"]},"torrent":{"id":31720330,"infoHash":"5F1C7A60FFA607E24375421EC08683533E3774FE","media":"CD","format":"FLAC","encoding":"Lossless","remastered":true,"remasterYear":2014,"remasterTitle":"Super Deluxe Edition","remasterRecordLabel":"Atlantic Catalog Group","remasterCatalogueNumber":"","scene":false,"hasLog":true,"hasCue":true,"logScore":100,"fileCount":22,"size":559936095,"seeders":54,"leechers":6,"snatched":49,"freeTorrent":false,"reported":false,"time":"2014-10-16 21:18:16","description":"These are the 2 CDs of the 2014 edition of Led Zeppelin IV.\r\n\r\nDisc: 1\r\n1. Black Dog\r\n2. Rock And Roll\r\n3. The Battle of Evermore\r\n4. Stairway To Heaven\r\n5. Misty Mountain Hop\r\n6. Four Sticks\r\n7. Going To California\r\n8. When The Levee Breaks\r\n\r\nDisc: 2\r\n1. Black Dog (Basic Track With Guitar Overdubs)\r\n2. Rock And Roll (Alternate Mix)\r\n3. The Battle Of Evermore (Mandolin\/Guitar Mix From Headley Grange)\r\n4. Stairway To Heaven (Sunset Sound Mix)\r\n5. Misty Mountain Hop (Alternate Mix)\r\n6. Four Sticks (Alternate Mix)\r\n7. Going To California (Mandolin\/Guitar Mix)\r\n8. When The Levee Breaks (Alternate UK Mix)","fileList":"CD 1\/01 Black Dog.flac{{{33668349}}}|||CD 1\/02 Rock and Roll.flac{{{28886868}}}|||CD 1\/03 The Battle of Evermore.flac{{{39157032}}}|||CD 1\/04 Stairway to Heaven.flac{{{49808681}}}|||CD 1\/05 Misty Mountain Hop.flac{{{34317826}}}|||CD 1\/06 Four Sticks.flac{{{31357859}}}|||CD 1\/07 Going to California.flac{{{20339677}}}|||CD 1\/08 When the Levee Breaks.flac{{{51061837}}}|||CD 1\/Led Zeppelin - Led Zeppelin IV - Super Deluxe Edition (CD1).log{{{9648}}}|||CD 1\/Led Zeppelin - Led Zeppelin IV - Super Deluxe Edition (CD1).m3u{{{583}}}|||CD 1\/Led Zeppelin IV - Super Deluxe Edition (CD1).cue{{{1486}}}|||CD 2\/01 Black Dog (Basic Track With Guitar Overdubs).flac{{{29734558}}}|||CD 2\/02 Rock and Roll (Alternate Mix).flac{{{29487348}}}|||CD 2\/03 The Battle of Evermore (Mandolin,Guitar Mix From Headley).flac{{{25770186}}}|||CD 2\/04 Stairway to Heaven (Sunset Sound Mix).flac{{{48002188}}}|||CD 2\/05 Misty Mountain Hop (Alternate Mix).flac{{{35233233}}}|||CD 2\/06 Four Sticks (Alternate Mix).flac{{{32731495}}}|||CD 2\/07 Going to Calfornia (Mandolin,Guitar Mix).flac{{{20505467}}}|||CD 2\/08 When the Levee Breaks (Alternate U.K. Mix).flac{{{49849015}}}|||CD 2\/Led Zeppelin - Led Zeppelin IV - Super Deluxe Edition (CD2).log{{{9974}}}|||CD 2\/Led Zeppelin - Led Zeppelin IV - Super Deluxe Edition (CD2).m3u{{{941}}}|||CD 2\/Led Zeppelin IV - Super Deluxe Edition (CD2).cue{{{1844}}}","filePath":"Led Zeppelin - Led Zeppelin IV (Super Deluxe Edition) - 2014 - FLAC","userId":422386,"username":"nagrom92"}}}'
@@ -52,7 +52,7 @@ class MockWhatAPI():
 
 
 @mock.patch('WhatManager3.utils.prune_connections', lambda: None)
-@mock.patch('trackers.whatcd.client.WhatAPI.create', lambda: MockWhatAPI())
+@mock.patch('trackers.whatcd.client.WhatAPI', lambda a, b: MockWhatAPI())
 class TrackerTorrentTestCase(TestCase):
     def setUp(self):
         store = TorrentStore.create()
@@ -66,8 +66,16 @@ class TrackerTorrentTestCase(TestCase):
                 continue
             shutil.rmtree(os.path.join(store.dir, item))
 
+    def create_tracker_client(self):
+        return TrackerClient(Settings(
+            user_id=0,
+            username='',
+            password='',
+            monitor_freeleech=False
+        ))
+
     def test_create_music_torrent(self):
-        client = TrackerClient()
+        client = self.create_tracker_client()
         music_torrent = asyncio.get_event_loop().run_until_complete(client.fetch_metadata(31720330))
         self.assertEqual(music_torrent.id, 31720330)
         self.assertEqual(music_torrent.info_hash, '5F1C7A60FFA607E24375421EC08683533E3774FE')
@@ -83,7 +91,7 @@ class TrackerTorrentTestCase(TestCase):
         self.assertEqual(TorrentGroup.objects.get().trackertorrent_set.get().id, 31720330)
 
     def test_delete(self):
-        client = TrackerClient()
+        client = self.create_tracker_client()
         music_torrent = asyncio.get_event_loop().run_until_complete(client.fetch_metadata(31720330))
         music_torrent.delete()
         self.assertEqual(TrackerTorrent.objects.count(), 0)
@@ -93,21 +101,21 @@ class TrackerTorrentTestCase(TestCase):
         self.assertEqual(ArtistAlias.objects.count(), 0)
 
     def test_create_application_torrent(self):
-        client = TrackerClient()
+        client = self.create_tracker_client()
         asyncio.get_event_loop().run_until_complete(client.fetch_metadata(31720561))
         tg = TorrentGroup.objects.get()
         self.assertEqual(tg.trackertorrent_set.get().id, 31720561)
         self.assertEqual(tg.name, 'Audirvana Plus 2.0.2 [Intel/K\'ed]')
 
     def test_ebook_torrent(self):
-        client = TrackerClient()
+        client = self.create_tracker_client()
         asyncio.get_event_loop().run_until_complete(client.fetch_metadata(31720103))
         tg = TorrentGroup.objects.get()
         self.assertEqual(tg.trackertorrent_set.get().id, 31720103)
         self.assertEqual(tg.name, 'Chuck Palahniuk - Rant: An Oral Biography of Buster Casey')
 
     def test_audiobook_torrent(self):
-        client = TrackerClient()
+        client = self.create_tracker_client()
         asyncio.get_event_loop().run_until_complete(client.fetch_metadata(31720450))
         tg = TorrentGroup.objects.get()
         self.assertEqual(tg.trackertorrent_set.get().id, 31720450)
@@ -115,21 +123,21 @@ class TrackerTorrentTestCase(TestCase):
                                   ' 2,000 Years of Middle East History')
 
     def test_elearn_video_torrent(self):
-        client = TrackerClient()
+        client = self.create_tracker_client()
         asyncio.get_event_loop().run_until_complete(client.fetch_metadata(31720559))
         tg = TorrentGroup.objects.get()
         self.assertEqual(tg.trackertorrent_set.get().id, 31720559)
         self.assertEqual(tg.name, 'Groove3.Turnado.Explained')
 
     def test_comedy_torrent(self):
-        client = TrackerClient()
+        client = self.create_tracker_client()
         asyncio.get_event_loop().run_until_complete(client.fetch_metadata(31718839))
         tg = TorrentGroup.objects.get()
         self.assertEqual(tg.trackertorrent_set.get().id, 31718839)
         self.assertEqual(tg.name, 'The Goons - The Goons: Volume 2')
 
     def test_comic_torrent(self):
-        client = TrackerClient()
+        client = self.create_tracker_client()
         asyncio.get_event_loop().run_until_complete(client.fetch_metadata(31720617))
         tg = TorrentGroup.objects.get()
         self.assertEqual(tg.trackertorrent_set.get().id, 31720617)
