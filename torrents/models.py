@@ -93,7 +93,6 @@ class QueuedTorrent(models.Model):
     class Meta:
         unique_together = (
             ('announces_hash', 'info_hash'),
-            ('instance', 'info_hash'),
         )
 
     announces_hash = models.CharField(max_length=40, db_index=True)
