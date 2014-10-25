@@ -1,0 +1,5 @@
+Django==1.7.1
+ujson==1.33
+pytz==2014.7
+aiohttp==0.9.2
+requests==2.4.3
