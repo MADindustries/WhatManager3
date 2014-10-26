@@ -60,28 +60,14 @@ ROOT_URLCONF = 'WhatManager3.urls'
 
 WSGI_APPLICATION = 'WhatManager3.wsgi.application'
 
-# one of 'dev' or 'production'
-ENVIRONMENT = 'dev'
-
 # Database
 # https://docs.djangoproject.com/en/1.7/ref/settings/#databases
-
-if ENVIRONMENT == 'dev':
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': 'what_manager3',
-        }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': 'what_manager3',
     }
-elif ENVIRONMENT == 'production':
-    DATABASES = {
-        'default': {
-            'ENGINE': 'mysql.connector.django',
-            'NAME': 'what_manager3',
-            'USER': 'root',
-            'CONN_MAX_AGE': 9,
-        }
-    }
+}
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.7/topics/i18n/
