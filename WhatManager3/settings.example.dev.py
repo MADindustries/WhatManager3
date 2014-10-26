@@ -60,16 +60,12 @@ ROOT_URLCONF = 'WhatManager3.urls'
 
 WSGI_APPLICATION = 'WhatManager3.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/1.7/ref/settings/#databases
-
 DATABASES = {
     'default': {
-        'ENGINE': 'mysql.connector.django',
+        'ENGINE': 'django.db.backends.sqlite3',
         'NAME': 'what_manager3',
-        'USER': 'root',
-        'CONN_MAX_AGE': 9,
     }
 }
 

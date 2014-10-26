@@ -1,5 +1,6 @@
 from datetime import datetime
 import html
+import os
 import ujson
 
 from django.db import close_old_connections
@@ -32,3 +33,11 @@ def db_func(func):
         return func(*args, **kwargs)
 
     return inner
+
+
+def load_fixture(filename):
+    path = os.path.dirname(os.path.realpath(__file__))
+    path = os.path.join(path, '..', 'fixtures', filename)
+    with open(path, 'rb') as f:
+        data = f.read()
+    return data

@@ -10,6 +10,7 @@
 
 # Written by Petru Paler, modified to run under Python 3 by Ivailo Karamanolev
 
+
 class BTFailure(Exception):
     pass
 

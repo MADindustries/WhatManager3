@@ -49,4 +49,3 @@ class TorrentInfo(object):
     def from_file(cls, file_path):
         with open(file_path, 'rb') as f:
             return cls.from_binary(f.read())
-

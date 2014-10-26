@@ -29,6 +29,6 @@ def choose_shard(locked_instances, announces_hash, info_hash):
         else:
             raise Exception('No instances are available')
     for i in instances:
-        if not i in locked_ids:
+        if i not in locked_ids:
             return i
     return choice(instances)
