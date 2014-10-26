@@ -1,12 +1,11 @@
 import asyncio
+from logging import Logger
 import time
 
 from tornado.platform.asyncio import AsyncIOMainLoop
-
 from tornado.web import Application, url
 
 from WhatManager3.asyncio_helper import JsonWhatManagerRequestHandler
-
 from WhatManager3.settings import TRACKER_MANAGER_PORT
 from WhatManager3.utils import db_func
 from trackers.loader import get_clients
@@ -16,6 +15,7 @@ class TrackerUpdater(object):
     @db_func
     def __init__(self, loop):
         self.loop = loop
+        self.logger = Logger('TrackerUpdater')
         self.clients = get_clients()
 
     def start(self):
@@ -27,10 +27,17 @@ class TrackerUpdater(object):
         delay = 1800 - current_time % 1800
         print('Hourly update in ', delay, 's')
         yield from asyncio.sleep(delay)
+        print('Starting hourly update')
         for client in self.clients.values():
             update_freeleech = getattr(client, 'update_freeleech', None)
             if update_freeleech is not None:
-                yield from update_freeleech()
+                try:
+                    yield from update_freeleech()
+                except Exception as ex:
+                    self.logger.error('{0} update_freelech failed with {1}'.format(
+                        client.name, ex
+                    ))
+        print('Hourly update complete')
         asyncio.async(self.freeleech_update_loop(), loop=self.loop)
 
 
@@ -42,6 +49,7 @@ class AddTorrentHandler(JsonWhatManagerRequestHandler):
     @asyncio.coroutine
     def post_json(self):
         tracker_name = self.get_body_argument('tracker')
+        torrent_id = self.get_body_argument('id')
         client = self.updater.clients.get(tracker_name, None)
         if client is None:
             return {
@@ -49,10 +57,9 @@ class AddTorrentHandler(JsonWhatManagerRequestHandler):
                 'error_code': 'tracker_not_found',
                 'error': 'Tracker {0} not found'.format(tracker_name),
             }
-        torrent_id = self.get_body_argument('torrent_id')
         body_arguments = {
             k: v[0].decode('utf-8') for k, v in self.request.body_arguments.items()
-            if k not in ['tracker', 'torrent_id']
+            if k not in ['tracker', 'id']
         }
         yield from client.fetch_metadata(torrent_id, **body_arguments)
         return {

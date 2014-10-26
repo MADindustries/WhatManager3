@@ -22,7 +22,7 @@ class TrackerManagerClient(object):
         try:
             data = {
                 'tracker': tracker,
-                'torrent_id': torrent_id
+                'id': torrent_id
             }
             data.update(kwargs)
             response = requests.post(url, data=data)

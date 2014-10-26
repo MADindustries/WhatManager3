@@ -1,8 +1,11 @@
 import asyncio
+import os.path
+from random import choice
 
 from django.db import transaction
 
 from WhatManager3.utils import db_func, prune_connections, json_dumps
+from torrents.models import ClientTorrent, QueuedTorrent, DownloadLocation
 from torrents.utils import TorrentInfo
 from trackers.store import TorrentStore
 from trackers.whatcd.api import WhatAPI
@@ -56,16 +59,36 @@ class TrackerClient(object):
     def update_freeleech_metadata(self):
         prune_connections()
         freeleech_torrents = list(FreeleechTorrent.objects.all())
-        for torrent in freeleech_torrents:
+        download_locations = DownloadLocation.get_for_tracker(self.name)
+        print('Received', len(freeleech_torrents), 'freeleech torrents')
+        for fl_torrent in freeleech_torrents:
             prune_connections()
             try:
-                print('Checking', torrent.torrent_id)
-                TrackerTorrent.objects.get(id=torrent.torrent_id)
+                torrent = TrackerTorrent.objects.get(id=fl_torrent.torrent_id)
             except TrackerTorrent.DoesNotExist:
-                yield from self.fetch_metadata(torrent.torrent_id)
-            else:
-                yield from asyncio.sleep(0.05)
-        print('freeleech metadata complete')
+                torrent = yield from self.fetch_metadata(fl_torrent.torrent_id)
+            try:
+                ClientTorrent.objects.get(
+                    announces_hash=torrent.announces_hash,
+                    info_hash=torrent.info_hash
+                )
+            except ClientTorrent.DoesNotExist:
+                download_location = choice(download_locations)
+                download_path = os.path.join(download_location.path, str(torrent.id))
+                try:
+                    QueuedTorrent.objects.get(
+                        announces_hash=torrent.announces_hash,
+                        info_hash=torrent.info_hash
+                    )
+                except QueuedTorrent.DoesNotExist:
+                    print('Queueing freeleech', torrent.id)
+                    QueuedTorrent(
+                        announces_hash=torrent.announces_hash,
+                        info_hash=torrent.info_hash,
+                        delay=0,
+                        path=download_path,
+                    ).save()
+            yield from asyncio.sleep(0.05)
 
     @classmethod
     def create(cls):

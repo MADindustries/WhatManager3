@@ -76,7 +76,8 @@ class TorrentClient(object):
     def add_torrent(self, torrent_data, add_path):
         args = {
             'metainfo': base64.b64encode(torrent_data),
-            'path': add_path,
+            'download-dir': add_path,
+            'paused': False,
         }
         yield from self._call('torrent-add', **args)
 

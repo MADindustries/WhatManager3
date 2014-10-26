@@ -1,9 +1,8 @@
 from datetime import datetime
 import html
-import os
 import ujson
 
-from django.db import close_old_connections
+import django.db
 import pytz
 
 
@@ -24,20 +23,12 @@ def parse_db_datetime(value):
 
 
 def prune_connections():
-    close_old_connections()
+    django.db.close_old_connections()
 
 
 def db_func(func):
     def inner(*args, **kwargs):
-        # prune_connections()
+        prune_connections()
         return func(*args, **kwargs)
 
     return inner
-
-
-def load_fixture(filename):
-    path = os.path.dirname(os.path.realpath(__file__))
-    path = os.path.join(path, '..', 'fixtures', filename)
-    with open(path, 'rb') as f:
-        data = f.read()
-    return data

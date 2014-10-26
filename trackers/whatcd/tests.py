@@ -4,10 +4,8 @@ import os.path
 import shutil
 from unittest import mock
 
-from django.test.testcases import TestCase
-
-from WhatManager3.utils import json_loads, load_fixture
-
+from WhatManager3.test_utils import TestCase, load_fixture
+from WhatManager3.utils import json_loads
 from trackers.store import TorrentStore
 from trackers.whatcd.client import TrackerClient
 from trackers.whatcd.models import TrackerTorrent, TorrentGroup, Artist, ArtistAlias, TorrentArtist, \

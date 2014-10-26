@@ -1,15 +1,12 @@
 import asyncio
-from unittest import TestCase as NoDBTestCase
 
-# Create your tests here.
-from django.test.testcases import TestCase
 from django.utils import timezone
+
 from torrents import bencode
 from torrents.manager.sharding import choose_shard, TorrentAlreadyAddedException
 from torrents.models import ClientTorrent, ClientInstance, TorrentManager, DownloadLocation
 from torrents.utils import encode_announces, decode_announces, TorrentInfo
-
-from WhatManager3.utils import load_fixture
+from WhatManager3.test_utils import TestCase, load_fixture
 
 
 def _load_fixture(filename):
@@ -20,7 +17,7 @@ what_torrent_data = _load_fixture('what.torrent')
 multi_tracker_data = _load_fixture('multi_tracker.torrent')
 
 
-class BencodeTestCase(NoDBTestCase):
+class BencodeTestCase(TestCase):
     def test_rountrip(self):
         data = {
             b'list': [1, 2, 3],
@@ -33,7 +30,7 @@ class BencodeTestCase(NoDBTestCase):
         self.assertEqual(bencoded, bencoded2)
 
 
-class AnnounceEncodingTestCase(NoDBTestCase):
+class AnnounceEncodingTestCase(TestCase):
     def test_roundtrip(self):
         self.encode_decode([['hi']])
         self.encode_decode([['hi', 'boo']])
@@ -47,7 +44,7 @@ class AnnounceEncodingTestCase(NoDBTestCase):
         self.assertEqual(data, decoded)
 
 
-class TorrentInfoTestCase(NoDBTestCase):
+class TorrentInfoTestCase(TestCase):
     def do_test_parsing(self, b):
         info = TorrentInfo.from_binary(b)
         torrent = ClientTorrent()
@@ -67,6 +64,7 @@ class TorrentInfoTestCase(NoDBTestCase):
 class ShardingTestCase(TestCase):
     def setUp(self):
         self.info = TorrentInfo.from_binary(what_torrent_data)
+        super(ShardingTestCase, self).setUp()
 
     def choose_shard(self, locked_instances):
         return choose_shard(locked_instances, self.info.announces_hash, self.info.info_hash)

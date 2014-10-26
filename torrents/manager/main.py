@@ -28,7 +28,8 @@ class ClientManager(object):
     QUEUE_POP_INTERVAL = 5
 
     @db_func
-    def __init__(self, event_loop=None):
+    def __init__(self, torrent_manager, event_loop=None):
+        self.torrent_manager = torrent_manager
         self.logger = logging.getLogger('torrent_manager.client_updater')
         self.loop = event_loop or asyncio.get_event_loop()
         self.instances = {
@@ -42,8 +43,9 @@ class ClientManager(object):
         self.info_hashes = set()
         self.torrent_store = TorrentStore.create()
 
+    @asyncio.coroutine
     def start(self):
-        asyncio.async(self.full_update_loop(), loop=self.loop)
+        yield from self.full_update_loop()
         for instance in self.instances.values():
             asyncio.async(self.update_loop(instance), loop=self.loop)
         asyncio.async(self.queue_loop(), loop=self.loop)
@@ -56,7 +58,10 @@ class ClientManager(object):
         except QueuedTorrent.DoesNotExist:
             return
         torrent_data = self.torrent_store.get(top.announces_hash, top.info_hash)
-        yield from self.add_torrent(torrent_data, DownloadLocation.objects.get().path)
+        try:
+            yield from self.add_torrent(torrent_data, top.path)
+        except TorrentAlreadyAddedException:
+            self.logger.info('Popped already added torrent {0}'.format(top.info_hash))
         prune_connections()
         top.delete()
 
@@ -179,11 +184,14 @@ class ClientManager(object):
             raise TorrentAlreadyAddedException()
         self.info_hashes.add(hashes_key)
         try:
-            locked_instances = [i for i in self.instances if not i.lock.locked()]
-            shard = yield from self.loop.run_in_executor(
-                self.pool, choose_shard, locked_instances, info)
-            instance = self.instances[shard.id]
+            locked_instances = [i for i in self.instances.values() if not i.lock.locked()]
+            shard_id = yield from self.loop.run_in_executor(
+                self.pool, choose_shard, locked_instances, info.announces_hash, info.info_hash)
+            instance = self.instances[shard_id]
             with (yield from instance.lock):
+                self.logger.info('Adding torrent {0} to instance {1}'.format(
+                    info.info_hash, instance
+                ))
                 yield from instance.client.add_torrent(torrent_data, add_path)
                 yield from self.update_added_torrent(instance, info.info_hash)
         finally:
@@ -256,14 +264,14 @@ class DeleteTorrentHandler(JsonWhatManagerRequestHandler):
 
     @asyncio.coroutine
     def post_json(self):
-        torrent_id = self.get_body_argument('torrent_id', None)
+        torrent_id = self.get_body_argument('id', None)
         if torrent_id:
             return (yield from self.updater.delete_torrent(torrent_id))
         else:
             return {
                 'success': False,
                 'error_code': 'missing_parameter',
-                'error': 'Please either info_hash or tracker and torrent_id',
+                'error': 'Please send an id parameter in POST.',
             }
 
 
@@ -280,13 +288,15 @@ def get_torrent_manager():
 def run():
     AsyncIOMainLoop().install()
     loop = asyncio.get_event_loop()
-    updater = ClientManager(loop)
+    torrent_manager = get_torrent_manager()
+    updater = ClientManager(torrent_manager, loop)
+    print('Waiting for a full update cycle before starting up...')
+    loop.run_until_complete(asyncio.async(updater.start()))
     app = Application([
         url('/torrents/add', AddTorrentHandler, kwargs={'updater': updater}),
         url('/torrents/delete', DeleteTorrentHandler, kwargs={'updater': updater}),
         url('/ping', PingHandler),
     ])
-    torrent_manager = get_torrent_manager()
     app.listen(torrent_manager.port)
-    updater.start()
+    print('Successfully started...')
     loop.run_forever()

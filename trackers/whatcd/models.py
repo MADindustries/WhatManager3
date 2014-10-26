@@ -41,7 +41,7 @@ class ArtistAlias(models.Model):
     @classmethod
     def get_or_create(cls, artist, name):
         try:
-            return artist.whatartistalias_set.get(name=name)
+            return artist.artistalias_set.get(name=name)
         except ArtistAlias.DoesNotExist:
             alias = ArtistAlias(
                 artist=artist,
@@ -244,4 +244,4 @@ class FreeleechTorrent(models.Model):
 
     @cached_property
     def torrent(self):
-        return json_dumps(self.torrent_json)
+        return json_loads(self.torrent_json)

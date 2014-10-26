@@ -21,6 +21,13 @@ HEADERS = {
     'User-Agent': 'whatapi [karamanolev]'
 }
 
+# Taken from Gazelle source, current as of 2014-10-26
+RATE_LIMITED_ACTIONS = [
+    'tcomments', 'user', 'forum', 'top10', 'browse', 'usersearch', 'requests', 'artist', 'inbox',
+    'subscriptions', 'bookmarks', 'announcements', 'notifications', 'request', 'better',
+    'similar_artists', 'userhistory', 'votefavorite', 'wiki', 'torrentgroup', 'news_ajax',
+    'user_recents', 'collage', 'raw_bbcode']
+
 
 class RequestException(Exception):
     def __init__(self, message=None, response=None):
@@ -101,7 +108,8 @@ class WhatAPI:
             params['auth'] = self.authkey
         params.update(kwargs)
         try_login = params.get('try_login', True)
-        yield from self.rate_limiter.wait_operation()
+        if action in RATE_LIMITED_ACTIONS:
+            yield from self.rate_limiter.wait_operation()
         r = yield from aiohttp.request('get', ajax_page, params=params, allow_redirects=False,
                                        headers=HEADERS, connector=self.connector)
         response_text = yield from r.text()

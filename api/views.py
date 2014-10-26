@@ -3,7 +3,7 @@ from functools import reduce
 
 from django.db.models.aggregates import Sum
 from django.db.models import Q
-from django.http.response import JsonResponse
+from django.http.response import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
@@ -12,13 +12,14 @@ from torrents.client import TorrentManagerException
 from torrents.models import ClientTorrent, DownloadLocation
 from trackers.client import TrackerManagerException
 from trackers.loader import get_tracker_torrent_model
+from trackers.store import TorrentStore
 
 
 @csrf_exempt
 @require_POST
 def add_torrent(request):
     tracker = request.POST['tracker']
-    torrent_id = request.POST['torrent_id']
+    torrent_id = request.POST['id']
     client = ApiManager()
     try:
         client.add_torrent(tracker, torrent_id)
@@ -45,19 +46,19 @@ def delete_torrent(request):
 
 def torrents_status(request):
     qs = []
+    ids = [int(i) for i in request.GET['ids'].split(',')]
     requested = {}
-    if 'tracker' in request.GET and 'ids' in request.GET:
-        ids = request.GET['ids'].split(',')
-        model = get_tracker_torrent_model(request.GET['tracker'])
-        for t in model.objects.filter(id__in=ids).only('id', 'announces_hash', 'info_hash'):
-            requested[t.id] = (t.announces_hash, t.info_hash)
-            qs.append(Q(announces_hash=t.announces_hash, info_hash=t.info_hash))
+    model = get_tracker_torrent_model(request.GET['tracker'])
+    for t in model.objects.filter(id__in=ids).only('id', 'announces_hash', 'info_hash'):
+        requested[t.id] = (t.announces_hash, t.info_hash)
+        qs.append(Q(announces_hash=t.announces_hash, info_hash=t.info_hash))
     torrents = {
         (t.announces_hash, t.info_hash): t for t in
-        ClientTorrent.objects.filter(reduce(lambda a, b: a | b), qs)
+        ClientTorrent.objects.filter(reduce(lambda a, b: a | b, qs, Q()))
     }
     statuses = {}
-    for torrent_id, key in requested.items():
+    for torrent_id in ids:
+        key = requested.get(torrent_id)
         torrent = torrents.get(key)
         if torrent is None:
             statuses[torrent_id] = {'status': 'missing'}
@@ -66,6 +67,14 @@ def torrents_status(request):
         else:
             statuses[torrent_id] = {'status': 'downloaded'}
     return JsonResponse(statuses)
+
+
+def torrents_store_get(request):
+    store = TorrentStore.create()
+    announces_hash = request.GET['announces_hash']
+    info_hash = request.GET['info_hash']
+    return HttpResponse(store.get(announces_hash, info_hash),
+                        content_type='application/x-bittorrent')
 
 
 def site_stats(request):

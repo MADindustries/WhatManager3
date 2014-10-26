@@ -68,6 +68,6 @@ class TorrentManagerClient(object):
         url = 'http://{0}:{1}/torrents/delete'.format(self.torrent_manager.host,
                                                       self.torrent_manager.port)
         data = {
-            'torrent_id': torrent_id
+            'id': torrent_id
         }
         return requests.post(url, data=data)

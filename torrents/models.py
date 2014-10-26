@@ -12,6 +12,12 @@ class TorrentManager(models.Model):
     host = models.CharField(max_length=256)
     port = models.IntegerField()
 
+    def get_primary_download_location(self):
+        return DownloadLocation.objects.get(
+            manager=self,
+            primary=True
+        )
+
 
 class ClientInstance(models.Model):
     manager = models.ForeignKey(TorrentManager)
@@ -42,6 +48,8 @@ class ClientInstance(models.Model):
 class DownloadLocation(models.Model):
     manager = models.ForeignKey(TorrentManager)
     path = models.CharField(max_length=512)
+    primary = models.BooleanField(default=False)
+    tracker = models.CharField(max_length=64, null=True)
 
     def get_disk_space(self):
         # TODO: we shouldn't be asking the FS, but the torrent manager for this
@@ -51,6 +59,10 @@ class DownloadLocation(models.Model):
             'used': (stat.f_blocks - stat.f_bfree) * stat.f_frsize,
             'total': stat.f_blocks * stat.f_frsize
         }
+
+    @classmethod
+    def get_for_tracker(cls, tracker_name):
+        return list(DownloadLocation.objects.filter(tracker=tracker_name))
 
 
 class ClientTorrent(models.Model):
@@ -90,15 +102,11 @@ class ClientTorrent(models.Model):
 
 
 class QueuedTorrent(models.Model):
-    class Meta:
-        unique_together = (
-            ('announces_hash', 'info_hash'),
-        )
-
     announces_hash = models.CharField(max_length=40, db_index=True)
     info_hash = models.CharField(max_length=40, db_index=True)
     added = models.DateTimeField(auto_now_add=True)
     delay = models.FloatField(db_index=True)
+    path = models.CharField(max_length=512)
 
     @classmethod
     def top(cls):
