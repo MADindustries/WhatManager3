@@ -5,4 +5,5 @@ env:
     - TOX_ENV=pep8
 install: "pip install tox"
 script:
+    - cp WhatManager3/settings.example.prod.py WhatManager3/settings.py
     - tox -e $TOX_ENV
