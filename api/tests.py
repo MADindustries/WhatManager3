@@ -1,3 +1,5 @@
+from django.contrib.auth.models import User
+
 from django.test.client import Client
 from django.utils import timezone
 
@@ -28,12 +30,13 @@ class TorrentStatusTestCase(TestCase):
 
     def test_basic_status(self):
         c = Client()
+        User.objects.create_user('test', password='test')
+        c.login(username='test', password='test')
 
         i = self.create_instance()
         info = TorrentInfo.from_binary(music_torrent_data)
         w_t = TrackerTorrent.from_response(music_info, info)
         w_t.save()
-
         self.assertEqual(
             json_loads(c.get('/api/torrents/status', {
                 'tracker': 'what.cd',
