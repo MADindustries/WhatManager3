@@ -1,6 +1,8 @@
 # Create your views here.
 from functools import reduce
 
+from django.contrib.auth.decorators import login_required
+
 from django.db.models.aggregates import Sum
 from django.db.models import Q
 from django.http.response import JsonResponse, HttpResponse
@@ -17,6 +19,7 @@ from trackers.store import TorrentStore
 
 @csrf_exempt
 @require_POST
+@login_required
 def add_torrent(request):
     tracker = request.POST['tracker']
     torrent_id = request.POST['id']
@@ -32,6 +35,7 @@ def add_torrent(request):
 
 @csrf_exempt
 @require_POST
+@login_required
 def delete_torrent(request):
     torrent_id = request.POST.get('torrent_id')
     client = ApiManager()
@@ -44,6 +48,7 @@ def delete_torrent(request):
     return JsonResponse({'success': True})
 
 
+@login_required
 def torrents_status(request):
     qs = []
     ids = [int(i) for i in request.GET['ids'].split(',')]
